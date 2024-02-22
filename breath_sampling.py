@@ -1,4 +1,6 @@
 import librosa as li
+import numpy as np
+import matplotlib.pyplot as plt
 
 # construction
 class breath_Sample:
@@ -14,6 +16,18 @@ class breath_Sample:
         if self.sampling_rate is None:
             self.load_audio()
         return self.sampling_rate
+    
+    def visual_FFT(self):
+        FFT = np.fft.fft(self.audio)
+        frequency = np.fft.fftfreq(len(self.audio),1 / self.sampling_rate)
+        
+        plt.figure()
+        plt.plot(frequency[:len(frequency)//2], np.abs(FFT)[:len(frequency)//2])
+        plt.xlabel('Frequency (Hz) ')
+        plt.ylabel('Magnitude')
+        plt.title('Frequency Content')
+        plt.grid(True)
+        plt.show()        
     
 # Execution
 filename = 'Audio_samples\Breath Audio 3.mp3'
