@@ -55,6 +55,17 @@ Load the audio file using Librosa and calculate the sampling rate of the audio.
 
 ![image](https://github.com/amMistic/Mini_Project_Spiro/assets/134824444/2e41063b-7383-4ef1-baac-cd4438b4214e)
 
+**Question:** Why within mask?
+Answer: 👇
+
+**Within Mask**
+![image](https://github.com/amMistic/Mini_Project_Spiro/assets/134824444/016668f3-34e9-490b-b004-b67b0172baab)
+
+**Without Mask**
+![image](https://github.com/amMistic/Mini_Project_Spiro/assets/134824444/9db69ab9-63ef-4051-9d79-413257fc4b1d)
+
+![image](https://github.com/amMistic/Mini_Project_Spiro/assets/134824444/66bc9a3b-c2f7-43a1-be85-4b45f93a55f7)
+
 ### Step 3: Calculate FFT (Fast Fourier Transform)
 FFT is used to convert the audio signal from the time domain to the frequency domain. It enables analysis and visualization of frequency components in the audio.
 
