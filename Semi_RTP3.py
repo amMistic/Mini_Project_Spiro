@@ -145,7 +145,7 @@ def find_peaks_signal(signal):
     Output:
         - peaks (numpy array): Indices of the peaks in the signal.
     """
-    peaks, _ = find_peaks(signal, distance=15)
+    peaks, _ = find_peaks(signal, distance=30)
     return peaks
 
 # Function to clip the audio signal
@@ -165,7 +165,7 @@ def clip_audio(audio_sig, envelope_signal, peaks):
     width = 0
     for i in range(len(peaks)):
         if envelope_signal[peaks[i]] <= 200:
-            diff = peaks[i-1] - peaks[i] // 2
+            diff = peaks[i] - peaks[i-1] // 2
             width = peaks[i] - diff
             break
     
@@ -215,27 +215,31 @@ def main():
     filtered_signal = filter_signal(audio_data, LOWCUT, HIGHCUT, ORDER, SAMPLE_RATE)
     envelope = extract_envelope(filtered_signal, sample_rate, FL_HZ, RIPPLE_DB)
     
+    # smooth the filter audio and envelope
+    # smooth_fs = smooth_envelope(filtered_signal, WINDOW_SIZE)
+    smooth_env = smooth_envelope(envelope, WINDOW_SIZE)
+    
     # Find the peaks
-    peaks_E = find_peaks_signal(envelope)
-    peaks_As = np.max(np.abs(filtered_signal))
+    peaks_E = find_peaks_signal(smooth_env)
+    mx_peak_E = max(smooth_env[peaks_E])     
     
     # Clip the audio signal
-    clipped_AS, clipped_E = clip_audio(filtered_signal, envelope, peaks_E)
+    clipped_AS, clipped_E = clip_audio(filtered_signal, smooth_env, peaks_E)
     peaks_clipped = find_peaks_signal(clipped_E)
     
-    # Peak at 1 second
-    peak_1 = one_sec_peak(filtered_signal, SAMPLE_RATE)
+    # Peak at 1 second of envelope 
+    peak_1 = one_sec_peak(smooth_env, SAMPLE_RATE)
         
     # Plot the original audio waveform
     plt.figure(figsize=(12, 6))
     
     plt.subplot(2, 1, 1)
     plt.plot(time_array, filtered_signal, color='b', label='Filtered Audio Signal')
-    plt.plot(time_array, envelope, color='r', label='Envelope', alpha=0.9)
-    plt.plot(time_array[peaks_E], envelope[peaks_E], 'go', label='Peaks')
+    plt.plot(time_array, smooth_env, color='r', label='Envelope', alpha=0.9)
+    plt.plot(time_array[peaks_E], smooth_env[peaks_E], 'go', label='Peaks')
     plt.xlabel('Time (seconds)')
     plt.ylabel('Amplitude') 
-    plt.title(f'Original Audio Waveform and Envelope | Peak at 1 sec:{abs(peak_1):.2f} | Max Peak: {peaks_As:.2f}')
+    plt.title(f'Original Audio Waveform and Envelope | Peak at 1 sec:{abs(peak_1):.2f} | Max Peak: {mx_peak_E:.2f}')
     plt.legend(loc="upper right")
     plt.grid(True)
 
@@ -262,6 +266,10 @@ if __name__ == '__main__':
         ans = input("Try Again? y/n: ").lower()
         if ans == 'n' or ans =='no':
             again = False
+        elif ans == 'yes' or ans == 'y':
+            again = True
+        else:
+            print("Invalid Response!!")
         
             
 #TODO:
