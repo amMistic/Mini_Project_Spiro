@@ -98,3 +98,8 @@ Save the filtered audio after applying the high-pass filter for further analysis
 
 ## Results
 The project aims to identify breathing information present in the audio signal by analyzing its frequency content and filtering out higher frequencies. The filtered audio can be further used for various applications such as respiratory health monitoring or analysis.
+
+
+#### TODO:
+- Update the Readme file
+
