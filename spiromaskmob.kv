@@ -1,0 +1,43 @@
+#:kivy 2.1.0
+
+<CountdownPopup>:
+    title: "Countdown"
+    size_hint: 0.5, 0.5
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            id: countdown_label
+            text: ""
+            font_size: 24
+
+<ResultPopup>:
+    title: "Results"
+    size_hint: 1, 1
+
+BoxLayout:
+    orientation: 'vertical'
+    Label:
+        id: instruction_label
+        text: "Press 'START' to record audio"
+        font_size: 24
+        size_hint_y: 0.8
+    Button:
+        id: start_button
+        text: 'START'
+        font_size: 20
+        size_hint: None, None
+        size: dp(200), dp(100)
+        pos_hint: {'center_x': 0.5, 'y': 0.1}  # Center horizontally, 10% from the bottom
+        background_color: (0.2, 0.6, 0.8, 1)  # Aesthetic blue color
+        color: (1, 1, 1, 1)  # White text
+        background_normal: ''
+        background_down: ''
+        border: (1, 1, 1, 1)  # Border radius
+        canvas.before:
+            Color:
+                rgba: self.background_color
+            RoundedRectangle:
+                size: self.size
+                pos: self.pos
+                radius: [dp(10), ]
+        on_press: app.start_recording(self)
