@@ -3,14 +3,14 @@ import matplotlib.pyplot as plt
 import sounddevice as sd
 import tkinter as tk
 import time
-from scipy.signal import butter, lfilter, hilbert, kaiserord, filtfilt, firwin, find_peaks, welch
+from scipy.signal import butter, lfilter, hilbert, kaiserord, filtfilt, firwin, find_peaks
 from PyEMD import EMD
 import pywt
 
 # Parameters
 SAMPLE_RATE = 4000
-LOWCUT = 1
-HIGHCUT = 1999
+LOWCUT = 100    
+HIGHCUT = 1900
 ORDER = 5
 WINDOW_SIZE = 20
 FL_HZ = 10
@@ -146,7 +146,7 @@ def find_peaks_signal(signal):
     return peaks
 
 # Function to clip the audio signal
-def clip_audio(audio_sig: list, envelope_signal: list, threshold_ratio: int,window_size = 100):
+def clip_audio(audio_sig, envelope_signal, peaks):
     """
     Clips the audio signal based on envelope peaks.
 
@@ -159,36 +159,19 @@ def clip_audio(audio_sig: list, envelope_signal: list, threshold_ratio: int,wind
     - clipped_audio_signal (ndarray): Clipped audio signal.
     - clipped_envelope_signal (ndarray): Clipped envelope signal.
     """
-    prev_avg = 0
-    max_avg = 0
-    maxima = False
-    step_size = 50
-    width = len(envelope_signal)
-
-    # Iterate through the signal with the specified step size
-    for i in range(0, len(envelope_signal) - window_size + 1, step_size):
-        window_avg = np.mean(envelope_signal[i:i + window_size])
-
-        # Detect the point where the signal has reached a local maximum
-        if window_avg < prev_avg and not maxima:
-            maxima = True
-            max_avg = prev_avg
-
-        # Determine the clipping point based on the threshold ratio
-        if maxima and window_avg < threshold_ratio * max_avg:
-            width = i
+    width = 0
+    for i in range(len(peaks)):
+        if envelope_signal[peaks[i]] <= 200:
+            diff = peaks[i] - peaks[i-1] // 2
+            width = peaks[i] - diff
             break
-
-        prev_avg = window_avg
-
-    # Clip the signals at the determined width
+    
     clipped_audio_signal = audio_sig[:width]
     clipped_envelope_signal = envelope_signal[:width]
-
-    return clipped_audio_signal, clipped_envelope_signal, width
+    return clipped_audio_signal, clipped_envelope_signal
 
 # Function to calculate the peak at 1 second
-def one_sec_peak(signal: list, sr:int):
+def one_sec_peak(signal, sr):
     """
     Calculates the peak value at 1 second in the signal.
 
@@ -214,8 +197,9 @@ def apply_emd(signal):
     """
     emd = EMD()
     IMFs = emd.emd(signal)
-    denoised_signal = signal-IMFs[0]
-    return denoised_signal, IMFs[0]
+    # Assuming that the first IMF contains the most noise and the rest contain the useful signal
+    denoised_signal = signal - IMFs[0]
+    return denoised_signal
 
 # Function to apply wavelet denoising
 def wavelet_denoise(signal):
@@ -236,7 +220,7 @@ def wavelet_denoise(signal):
     return denoised_signal
 
 # Function to check if the sample is correct based on peak analysis
-def isCorrect(signal,threshold_ratio, peaks):
+def isCorrect(peaks, signal):
     """
     Checks if the sample is correct based on peak analysis.
 
@@ -248,209 +232,16 @@ def isCorrect(signal,threshold_ratio, peaks):
     Returns:
     - bool: True if the sample is correct, False otherwise.
     """
-    # maxima = 0
-    # for right in range(len(peaks) - 1):
-    #     if maxima == 0 and signal[peaks[right + 1]] < signal[peaks[right]]:
-    #         maxima = 1
-    #         maxx = signal[peaks[right]]
-    #         continue
-    #     if maxima == 1 and signal[peaks[right]] > 0.4 * maxx:                
-    #         return False
-    # return True
-    
-    maxima = False
-    pre_avg = 0
-    window_size = 100
-    step_size = 50
-    maxx_window = 0
-    for i in range(0, len(signal)-window_size +1, step_size):
-        curr_avg = np.mean(signal[i:i+window_size + 1])
-        if maxima == False and pre_avg < curr_avg:
-            maxima = True
-            maxx_window = pre_avg
-        if maxima == True and curr_avg > maxx_window * threshold_ratio:
+    maxima = 0
+    for right in range(len(peaks) - 1):
+        if maxima == 0 and signal[peaks[right + 1]] < signal[peaks[right]] and signal[peaks[right]] > 1000:          
+            maxima = 1
+            maxx = signal[peaks[right]]
+            continue
+        if maxima == 1 and signal[peaks[right]] > 0.4 * maxx:                
             return False
-        pre_avg = curr_avg
     return True
-
-# plot the power density spetural
-def plot_psd(signal, deoised_signal, fs, rmse: float, title:str):
-    """
-    Plots the Power Spectral Density (PSD) of a signal.
-
-    Parameters:
-    - signal (ndarray): Input signal.
-    - fs (int): Sampling rate of the signal.
-    - title (str): Title for the plot.
-    """
-    
-    f, Pxx = welch(signal, fs=fs, nperseg=1024)
-    fd, Pxxd = welch(deoised_signal, fs = fs, nperseg=1024)
-    plt.figure(figsize=(8, 6))
-    plt.semilogy(f, Pxx, label = 'Original Signal',alpha = 1)
-    plt.semilogy(fd, Pxxd, color = 'red', label = 'Denoised Signal', alpha = 0.5)
-    plt.title(f'Power Spectral Density | {title} |RMSE: {rmse:.4f}')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Power/Frequency (dB/Hz)')
-    plt.grid(True)
-    plt.legend(loc='upper right')
-    plt.tight_layout()
-    plt.show()
      
-# Function to calculate RMSE
-def calculate_rmse(original_signal, denoised_signal):
-    """
-    Calculates Root Mean Square Error (RMSE) between original and denoised signals.
-
-    Parameters:
-    - original_signal (ndarray): Original signal.
-    - denoised_signal (ndarray): Denoised signal.
-
-    Returns:
-    - rmse (float): Root Mean Square Error.
-    """
-    rmse = np.sqrt(np.mean((original_signal - denoised_signal) ** 2))
-    return rmse
-
-# Function to calculate SNR
-def calculate_snr(original_signal, denoised_signal):
-    signal_power = np.mean(original_signal ** 2)
-    noise_power = np.mean((original_signal - denoised_signal) ** 2)
-    snr = 10 * np.log10(signal_power / noise_power)
-    return snr
-
-# Function to plot results when sample is accepted
-def plot_results(audio_data, butterworth, wavelet_denoised_signal, smooth_env, peaks_E, time_array, mx_peak_E, peak_1, clipped_E, width, imf0):
-    """
-    Plots the results when the sample is accepted.
-
-    Parameters:
-    - audio_data (ndarray): Recorded audio signal.
-    - emd_denoised_signal (ndarray): EMD denoised audio signal.
-    - wavelet_denoised_signal (ndarray): Denoised audio signal.
-    - smooth_env (ndarray): Smoothed envelope signal.
-    - peaks_E (ndarray): Indices of peaks in the envelope.
-    - time_array (ndarray): Time array corresponding to the audio signal.
-    - mx_peak_E (float): Maximum peak value in the envelope.
-    - peak_1 (float): Peak value at 1 second in the envelope.
-    """
-    plt.figure(figsize=(14, 6))
-    
-    # plt.subplot(3, 1, 1)
-    # plt.plot(time_array, audio_data, color='b', label='Raw Audio Signal')
-    # plt.xlabel('Time (seconds)')
-    # plt.ylabel('Amplitude') 
-    # plt.title('Raw Audio Waveform')
-    # plt.legend(loc="upper right")
-    # plt.grid(True)
-    
-    # plt.subplot(3, 1, 2)
-    # plt.plot(time_array, emd_denoised_signal, color='c', label='EMD Denoised Signal')
-    # plt.xlabel('Time (seconds)')
-    # plt.ylabel('Amplitude') 
-    # plt.title('EMD Denoised Waveform')
-    # plt.legend(loc="upper right")
-    # plt.grid(True)
-    
-    plt.subplot(3, 1, 1)
-    plt.plot(time_array, audio_data, color = 'b', label = 'Raw Audio Signal')
-    plt.plot(time_array, wavelet_denoised_signal, color='c', label='Filtered Audio Signal', alpha = 0.5)
-    plt.plot(time_array, smooth_env, color='r', label='Envelope', alpha=0.7)
-    plt.plot(time_array[peaks_E], smooth_env[peaks_E], 'go', label='Peaks')
-    plt.plot(time_array[width], smooth_env[width], 'mo', label='End Point')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title(f'Filtered Audio Waveform and Envelope | Peak at 1 sec:{abs(peak_1):.2f} | Max Peak: {mx_peak_E:.2f}')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-    
-    plt.subplot(3, 1, 2)
-    plt.plot(time_array, audio_data, color = 'b', label = 'Raw Audio Signal')
-    plt.plot(time_array, butterworth, color='c', label='IMF)', alpha = 0.6)
-    plt.plot(time_array, smooth_env, color='r', label='Envelope', alpha=0.8)
-    plt.plot(time_array[peaks_E], smooth_env[peaks_E], 'go', label='Peaks')
-    plt.plot(time_array[width], smooth_env[width], 'mo', label='End Point')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title(f'IMF0 and Envelope | Peak at 1 sec:{abs(peak_1):.2f} | Max Peak: {mx_peak_E:.2f}')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-    
-    # plt.subplot(3, 1, 3)
-    # plt.plot(time_array, imf0, color='m', label='IMF0')
-    # plt.xlabel('Time (seconds)')
-    # plt.ylabel('Amplitude') 
-    # plt.title('EMD Denoised Waveform')
-    # plt.legend(loc="upper right")
-    # plt.grid(True)
-
-    ctime = np.linspace(0, len(clipped_E) / SAMPLE_RATE, len(clipped_E))
-    
-    plt.subplot(3, 1, 3)
-    plt.plot(ctime, clipped_E, color='g', label='Clipped Envelope Signal')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title('Denoised Audio Waveform')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-    
-    plt.tight_layout()
-    plt.show()
-
-# Function to plot results when sample is rejected
-def plot_rejected(audio_data, emd_denoised_signal, wavelet_denoised_signal, smooth_env, peaks_E, time_array, clipped_E):
-    """
-    Plots the results when the sample is rejected.
-
-    Parameters:
-    - audio_data (ndarray): Recorded audio signal.
-    - emd_denoised_signal (ndarray): EMD denoised audio signal.
-    - wavelet_denoised_signal (ndarray): Denoised audio signal.
-    - smooth_env (ndarray): Smoothed envelope signal.
-    - peaks_E (ndarray): Indices of peaks in the envelope.
-    - time_array (ndarray): Time array corresponding to the audio signal.
-    """
-    plt.figure(figsize=(12, 10))
-    
-    plt.subplot(4, 1, 1)
-    plt.plot(time_array, audio_data, color='b', label='Raw Audio Signal')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title('Raw Audio Waveform')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-    
-    plt.subplot(4, 1, 2)
-    plt.plot(time_array, emd_denoised_signal, color='c', label='EMD Denoised Signal')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title('EMD Denoised Waveform')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-
-    plt.subplot(4, 1, 3)
-    ctime = np.arange(0, len(clipped_E)) / SAMPLE_RATE
-    plt.plot(ctime, clipped_E, color='g', label='Clipped Envelope Signal')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title('Denoised Audio Waveform')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-
-    plt.subplot(4, 1, 4)
-    plt.plot(time_array, wavelet_denoised_signal, color='b', label='Filtered Audio Signal')
-    plt.plot(time_array, smooth_env, color='r', label='Envelope', alpha=0.9)
-    plt.plot(time_array[peaks_E], smooth_env[peaks_E], 'go', label='Peaks')
-    plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude') 
-    plt.title(f'Filtered Audio Waveform and Envelope | ⚠️⚠️ SAMPLE REJECTED!!')
-    plt.legend(loc="upper right")
-    plt.grid(True)
-    
-    plt.tight_layout()
-    plt.show()
-
-
 # Main function
 def main():
     """
@@ -459,7 +250,6 @@ def main():
     It records audio, applies noise reduction and filtering,
     extracts features, checks sample validity, and displays results.
     """
-    
     show_countdown()                                                                            
     duration = 3
     audio_data, sample_rate = record_audio(duration)
@@ -467,7 +257,7 @@ def main():
     time_array = np.linspace(0, dur, len(audio_data))
     
     # Apply EMD for noise reduction
-    emd_denoised_signal, imf0 = apply_emd(audio_data)
+    emd_denoised_signal = apply_emd(audio_data)
     
     # Apply Butterworth bandpass filter
     filtered_signal = filter_signal(emd_denoised_signal, LOWCUT, HIGHCUT, ORDER, SAMPLE_RATE)
@@ -484,30 +274,110 @@ def main():
     mx_peak_E = max(smooth_env[peaks_E])     
     
     # Clip the audio signal based on envelope peaks
-    clipped_AS, clipped_E, endpoint = clip_audio(wavelet_denoised_signal, smooth_env, threshold_ratio=0.2)
+    clipped_AS, clipped_E = clip_audio(wavelet_denoised_signal, smooth_env, peaks_E)
     peaks_clipped = find_peaks_signal(clipped_E)
     
     # Calculate the peak value at 1 second of envelope
     peak_1 = one_sec_peak(smooth_env, SAMPLE_RATE)
     
-    # Calculate RMSE 
-    rmse_emd = calculate_rmse(audio_data, emd_denoised_signal)
-    rmse_imf0 = calculate_rmse(audio_data, imf0)
-    
-    snr_emd = calculate_snr(audio_data, emd_denoised_signal)
-    plot_results(audio_data, emd_denoised_signal, wavelet_denoised_signal, smooth_env, peaks_E, time_array, mx_peak_E, peak_1,clipped_E, endpoint, imf0)
-    
     # Check if the sample is correct based on peak analysis
-    # if isCorrect(signal=smooth_env, threshold_ratio=0.4,peaks=peaks_E):
-    #     plot_results(audio_data, emd_denoised_signal, wavelet_denoised_signal, smooth_env, peaks_E, time_array, mx_peak_E, peak_1,clipped_E, endpoint, imf0)
-    #     plot_psd(audio_data, emd_denoised_signal, SAMPLE_RATE, rmse_emd , 'EMD')
-    #     plot_psd(audio_data, imf0, SAMPLE_RATE, rmse_imf0 , 'IMF0')
-    # else:
-    #     # If sample is rejected, plot with rejection indication
-    #     plot_rejected(audio_data,emd_denoised_signal, wavelet_denoised_signal, smooth_env, peaks_E, time_array,clipped_E)
-    
+    if isCorrect(peaks=peaks_clipped, signal=clipped_AS):
+        # If sample is correct, plot the results
+        plot_results(audio_data, wavelet_denoised_signal, smooth_env, peaks_E, time_array, mx_peak_E, peak_1,clipped_E)
+    else:
+        # If sample is rejected, plot with rejection indication
+        plot_rejected(audio_data, wavelet_denoised_signal, smooth_env, peaks_E, time_array,clipped_E)
 
+# Function to plot results when sample is accepted
+def plot_results(audio_data, wavelet_denoised_signal, smooth_env, peaks_E, time_array, mx_peak_E, peak_1, clipped_E):
+    """
+    Plots the results when the sample is accepted.
+
+    Parameters:
+    - audio_data (ndarray): Recorded audio signal.
+    - wavelet_denoised_signal (ndarray): Denoised audio signal.
+    - smooth_env (ndarray): Smoothed envelope signal.
+    - peaks_E (ndarray): Indices of peaks in the envelope.
+    - time_array (ndarray): Time array corresponding to the audio signal.
+    - mx_peak_E (float): Maximum peak value in the envelope.
+    - peak_1 (float): Peak value at 1 second in the envelope.
+    """
+    plt.figure(figsize=(12, 8))
     
+    plt.subplot(3, 1, 1)
+    plt.plot(time_array, audio_data, color='b', label='Raw Audio Signal')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude') 
+    plt.title('Raw Audio Waveform')
+    plt.legend(loc="upper right")
+    plt.grid(True)
+    
+    plt.subplot(3, 1, 2)
+    ctime = np.arange(0, len(clipped_E)) / SAMPLE_RATE
+    plt.plot(ctime, clipped_E, color='g', label='Clipped Audio Signal')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude') 
+    plt.title('Denoised Audio Waveform')
+    plt.legend(loc="upper right")
+    plt.grid(True)
+
+    plt.subplot(3, 1, 3)
+    plt.plot(time_array, wavelet_denoised_signal, color='b', label='Filtered Audio Signal')
+    plt.plot(time_array, smooth_env, color='r', label='Envelope', alpha=0.9)
+    plt.plot(time_array[peaks_E], smooth_env[peaks_E], 'go', label='Peaks')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude') 
+    plt.title(f'Filtered Audio Waveform and Envelope | Peak at 1 sec:{abs(peak_1):.2f} | Max Peak: {mx_peak_E:.2f}')
+    plt.legend(loc="upper right")
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
+# Function to plot results when sample is rejected
+def plot_rejected(audio_data, wavelet_denoised_signal, smooth_env, peaks_E, time_array,clipped_E):
+    """
+    Plots the results when the sample is rejected.
+
+    Parameters:
+    - audio_data (ndarray): Recorded audio signal.
+    - wavelet_denoised_signal (ndarray): Denoised audio signal.
+    - smooth_env (ndarray): Smoothed envelope signal.
+    - peaks_E (ndarray): Indices of peaks in the envelope.
+    - time_array (ndarray): Time array corresponding to the audio signal.
+    """
+    plt.figure(figsize=(12, 8))
+    
+    plt.subplot(3, 1, 1)
+    plt.plot(time_array, audio_data, color='b', label='Raw Audio Signal')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude') 
+    plt.title('Raw Audio Waveform')
+    plt.legend(loc="upper right")
+    plt.grid(True)
+    
+    plt.subplot(3, 1, 2)
+    ctime = np.arange(0, len(clipped_E)) / SAMPLE_RATE
+    plt.plot(ctime, clipped_E, color='g', label='Clipped Audio Signal')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude') 
+    plt.title('Denoised Audio Waveform')
+    plt.legend(loc="upper right")
+    plt.grid(True)
+
+    plt.subplot(3, 1, 3)
+    plt.plot(time_array, wavelet_denoised_signal, color='b', label='Filtered Audio Signal')
+    plt.plot(time_array, smooth_env, color='r', label='Envelope', alpha=0.9)
+    plt.plot(time_array[peaks_E], smooth_env[peaks_E], 'go', label='Peaks')
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Amplitude') 
+    plt.title(f'Filtered Audio Waveform and Envelope | ⚠️⚠️ SAMPLE REJECTED!!')
+    plt.legend(loc="upper right")
+    plt.grid(True)
+    
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == '__main__':
     # Allow user to retry if desired
     again = True
