@@ -1,5 +1,3 @@
-## ----------- MAIN FILE ----------------------
-
 '''
 Data Collection Information:
 
@@ -23,17 +21,16 @@ import sounddevice as sd
 import matplotlib.pyplot as plt
 import scipy.signal as ss
 from scipy.io.wavfile import write
-from PyEMD import CEEMDAN
+from PyEMD import EMD
 import numpy as np
-import pandas as pd
 import tkinter as tk
 import pywt
 from time import sleep
 import datetime
 import os
+from pathlib import Path
 
- 
-# -----------------------------   GLOBAL PARAMETER   ---------------------------------------
+# -----------------------------   GLOBAL PARAMETERS   ---------------------------------------
 SAMPLE_RATE = 8000
 LOWCUT = 100
 HIGHCUT = 2000
@@ -41,11 +38,12 @@ ORDER = 5
 WINDOW_SIZE = 100
 FL_HZ = 10
 RIPPLE_DB = 10.0
+BASE_DIR = Path(__file__).resolve().parent
 
 # ------------------------------   RECORD AUDIO SIGNAL   ------------------------------------
 def capture_audio(duration: int):
     print('Recording....')
-    audio_data = sd.rec(int(duration * SAMPLE_RATE), SAMPLE_RATE, channels=1, dtype = 'int16' )
+    audio_data = sd.rec(int(duration * SAMPLE_RATE), SAMPLE_RATE, channels=1, dtype='int16')
     sd.wait()
     print('Processing...')
     return audio_data.flatten(), SAMPLE_RATE
@@ -68,8 +66,7 @@ def show_countdown():
     countdown_window.destroy()
 
 # --------------------------------------------------   BUTTERWORTH BANDPASS (100 - 1000)    ----------------------------------------------
-
-def butter_bp(lowcut: int, highcut: int, sr: int, order = 5):
+def butter_bp(lowcut: int, highcut: int, sr: int, order=5):
     nyq = 0.5 * sr
     low = lowcut / nyq
     high = highcut / nyq
@@ -81,11 +78,10 @@ def butterworth_filter(signal: list, lowcut: int, highcut: int, order: int, sr: 
     y = ss.lfilter(b, a, signal)
     return y
 
-# -------------------------------------------------------------  ICEEMDAN FILTER  ---------------------------------------------------------
-
-def iceemdan_filter(signal: list):
-    iceemdan = CEEMDAN()
-    IMFS = iceemdan(signal)
+# -------------------------------------------------------------  EMD FILTER  ---------------------------------------------------------
+def emd_filter(signal: list):
+    emd = EMD()
+    IMFS = emd.emd(signal)
     denoised_signal = signal - IMFS[0]
     return denoised_signal, IMFS[0]
 
@@ -98,20 +94,18 @@ def wavelet_denoising(signal: list) -> list:
     return denoised_signal
 
 # ---------------------------------------------------------------- EVALUATION ------------------------------------------------------------------
-
 def calculate_snr(signal: list, denoise_signal: list) -> float:
     noise = signal - denoise_signal
     signal_power = np.mean(signal ** 2)
     noise_power = np.mean(noise ** 2)
-    snr = 10 * np.log(signal_power / noise_power)
+    snr = 10 * np.log10(signal_power / noise_power)
     return snr
 
 def calculate_rmse(signal: list, denoise_signal: list) -> float:
     rmse = np.sqrt(np.mean((signal - denoise_signal)** 2))
     return rmse
 
-# ------------------------------------------------------------ EXTRACT ENEVELOPE AND SMOOTHEN IT   ---------------------------------------------------------------
-
+# ------------------------------------------------------------ EXTRACT ENVELOPE AND SMOOTHEN IT   ---------------------------------------------------------------
 def extract_envelope(signal: list, sr: int, fL_hz: int, ripple_db: int) -> list:
     nyq_rate = 0.5 * sr
     width = 1.0 / nyq_rate
@@ -125,10 +119,9 @@ def extract_envelope(signal: list, sr: int, fL_hz: int, ripple_db: int) -> list:
     return filtered_envelope
 
 def smooth_envelope(signal: list, window_size: int) -> list:
-    return np.convolve(signal, np.ones(window_size) / window_size, mode= 'same')
+    return np.convolve(signal, np.ones(window_size) / window_size, mode='same')
 
 # --------------------------------------------------------------  CALCULATE PARAMETERS ----------------------------------------------------
-
 def maxima(signal: list) -> tuple:
     signal = np.array(signal)  
     index = np.argmax(signal)  
@@ -136,46 +129,44 @@ def maxima(signal: list) -> tuple:
     return index, maxx_signal
 
 #  -------------------------------------------------------------- PLOTS FUNCTION --------------------------------------------------------------------
-
-def plot_signals(time: list, sr: int ,signal: list, denoised_signal: list, envelope: list, maxx_peak_time: int, start: int, end: int) -> None:
+def plot_signals(time: list, sr: int, signal: list, denoised_signal: list, envelope: list, maxx_peak_time: int, start: int, end: int) -> None:
     
     plt.figure(figsize=(14, 10))
     plt.subplot(3, 1, 1)
-    plt.plot(time, signal, label = 'Oiginal Signal')
-    plt.plot(time, denoised_signal, label = 'Denoised Signal', color = 'g', alpha = 0.5)
+    plt.plot(time, signal, label='Original Signal')
+    plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
     plt.title('Original V/s Denoised Signal')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
-    plt.legend(loc= 'upper right')
+    plt.legend(loc='upper right')
     plt.grid(True)
     
     plt.subplot(3, 1, 2)
-    plt.plot(time, denoised_signal, label = 'Denoised Signal', color = 'g', alpha = 0.5)
-    plt.plot(time, envelope, label = 'Envelope Signal', color = 'r', alpha = 0.7)
-    plt.plot(time[sr], envelope[sr], 'go' ,label = 'Peak at 1sec')
-    plt.plot(time[maxx_peak_time], envelope[maxx_peak_time], 'mo', label = 'Max Peak')
-    plt.plot(time[start], denoised_signal[start], 'ko' ,label = 'Start Point')
-    plt.plot(time[end], denoised_signal[end], 'co' ,label = 'End Point')
-    plt.title(f'Max Peak: {envelope[maxx_peak_time]:.2f} | Peak at 1sec: {envelope[sr]:.2f}')
+    plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
+    plt.plot(time, envelope, label='Envelope Signal', color='r', alpha=0.7)
+    plt.plot(time[sr], envelope[sr], 'go', label='Peak at 1 sec')
+    plt.plot(time[maxx_peak_time], envelope[maxx_peak_time], 'mo', label='Max Peak')
+    plt.plot(time[start], denoised_signal[start], 'ko', label='Start Point')
+    plt.plot(time[end], denoised_signal[end], 'co', label='End Point')
+    plt.title(f'Max Peak: {envelope[maxx_peak_time]:.2f} | Peak at 1 sec: {envelope[sr]:.2f}')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
-    plt.legend(loc= 'upper right')
+    plt.legend(loc='upper right')
     plt.grid(True)
     
     plt.subplot(3, 1, 3)
-    plt.plot(time, envelope, label = 'Envelope Signal', color = 'm', alpha = 0.7)
+    plt.plot(time, envelope, label='Envelope Signal', color='m', alpha=0.7)
     plt.title('Extracted Envelope')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
-    plt.legend(loc= 'upper right')
+    plt.legend(loc='upper right')
     plt.grid(True)
     
-    plt.tight_layout(pad= 3.0)
+    plt.tight_layout(pad=3.0)
     plt.show()
     
 # ------------------------------------------------------------- CLIPPING AUDIO  ------------------------------------------------------------------------
-
-def clipping_audio(signal: list, window_size: int, step_size:int, threshold_ratio: float) -> tuple:
+def clipping_audio(signal: list, window_size: int, step_size: int, threshold_ratio: float) -> tuple:
     start = 0
     endpoint = 0
     signal = np.array(signal)
@@ -185,15 +176,14 @@ def clipping_audio(signal: list, window_size: int, step_size:int, threshold_rati
         energy = np.sum((signal[i: i + window_size]) ** 2)
         if start == 0 and energy > threshold:
             start = i
-        if start!=0 and energy < threshold :
+        if start != 0 and energy < threshold:
             endpoint = i 
             break
     
     return start, endpoint
 
-# -------------------------------------------------- RECORDS THE DATA COLLECTION FUNCITON ---------------------------------------------------------------
-
-def record_data(filepath: str, recorded_audio_filename:str,subject_number: int, name: str ,body_type: int, gender:str, testing_datetime:str, diseases: str, max_peak: float, peak_at_1sec:float, signal_status: str ) -> None:
+# -------------------------------------------------- RECORDS THE DATA COLLECTION FUNCTION ---------------------------------------------------------------
+def record_data(filepath: str, recorded_audio_filename: str, subject_number: int, name: str, body_type: int, gender: str, testing_datetime: str, diseases: str, max_peak: float, peak_at_1sec: float, signal_status: str) -> None:
     # Ensure the folder exists
     folder = os.path.dirname(filepath)
     if not os.path.exists(folder):
@@ -210,29 +200,27 @@ def record_data(filepath: str, recorded_audio_filename:str,subject_number: int, 
     print(f"Data appended to '{filepath}' successfully.")
 
 def collect_data():
-    
     print('\n<--------------------------------------  Subject Details  ------------------------------------------>\n')
     subject_number = int(input('Subject Number: '))
-    name = str(input('Subject Full Name: ')).lower().strip().replace(' ','_')
+    name = str(input('Subject Full Name: ')).lower().strip().replace(' ', '_')
     gender = str(input('Subject Gender: ')).lower().strip()
     body_type = str(input('Subject Body Type[A, B, C, D]: ')).upper().strip()
     diseases = str(input('Any Heart Related Diseases?? Yes/No: ')).lower()
     print('\n<--------------------------------------  Details Collected  ------------------------------------------>\n')
-    return subject_number, name,body_type, gender, diseases
+    return subject_number, name, body_type, gender, diseases
 
-def saved_file(audio_data: np.ndarray, sr: int,filename: str, dir: str) ->  None:
-    filepath = os.path.join(dir,filename)
+def save_file(audio_data: np.ndarray, sr: int, filename: str, dir: str) -> None:
+    filepath = os.path.join(dir, filename)
     write(filepath, sr, audio_data)
     print(f"Audio data saved to {filepath}")
-    
-# -------------------------------------------------------------------------- MAIN FUNCTION  ----------------------------------------------------------------------------
 
+# -------------------------------------------------------------------------- MAIN FUNCTION  ----------------------------------------------------------------------------
 def main():
     print("--------------  Initiate System  ------------------")
     sleep(1)
 
-    # Collect subject deta
-    subject_number, name, body_type, gender, diseases = collect_data()
+    # Collect subject data
+    # subject_number, name, body_type, gender, diseases = collect_data()
     sleep(1)
 
     # Countdown
@@ -240,34 +228,38 @@ def main():
 
     # Record the audio
     current_day = datetime.datetime.now()
-    testing_datetime = str(current_day.strftime("%Y-%m-%d %H:%M:%S"))
-    testing_datetime = testing_datetime.replace('-','').replace(' ','_').replace(':','')
+    testing_datetime = current_day.strftime("%Y%m%d_%H%M%S")
 
-    DATAFILE = 'Data_Collection\\records.csv'
+    data_file = BASE_DIR / 'Data_Collection' / 'records.csv'
     audio_data, sr = capture_audio(3)
+    print(*audio_data[:100],sep='\n')
     
     # Time axis
     time = np.linspace(0, len(audio_data) / sr, len(audio_data))
     
-    # Apply ICEEMDAN filter on that
-    _denoised_signal, _imf0 = iceemdan_filter(audio_data)
-    denoised_signal = wavelet_denoising(_denoised_signal)
+    # Apply ButterWorth Pass Signal
+    butter_filt_data = butterworth_filter(audio_data, LOWCUT, HIGHCUT, ORDER, SAMPLE_RATE)
+    
+    # Apply EMD filter on that
+    denoised_signal, imf0 = emd_filter(butter_filt_data)
+    denoised_signal = wavelet_denoising(denoised_signal)
     
     # Extracting Envelope from the filtered audio
     envelope = extract_envelope(denoised_signal, SAMPLE_RATE, FL_HZ, RIPPLE_DB)
     smoothen_envelope = smooth_envelope(envelope, WINDOW_SIZE)
 
-    # Find the time stemp where the amplitude is maximum
+    # Find the timestamp where the amplitude is maximum
     max_peak_time, maxx_peak = maxima(smoothen_envelope)
     maxx_peak = float(f"{maxx_peak:.2f}")
     
     peak_at_1s = smoothen_envelope[sr]
     peak_at_1s = float(f"{peak_at_1s:.2f}")
     
-    # Find the clipps in the audio signal
-    start_point, end_point = clipping_audio(envelope, 400, 1, 0.1 )
-    filename = f'{name}_{testing_datetime}.wav'
-    print(f"Save the plot as: {name}_{testing_datetime}")
+    # # Find the clips in the audio signal
+    start_point, end_point = clipping_audio(envelope, 400, 1, 0.1)
+    
+    # filename = f'{name}_{testing_datetime}.wav'
+    # print(f"Save the plot as: {name}_{testing_datetime}")
     
     # Plot the signal
     plot_signals(time, sr, audio_data, denoised_signal, smoothen_envelope, max_peak_time, start_point, end_point)
@@ -275,27 +267,25 @@ def main():
     # Feedback on this 
     signal_status = str(input("Accepted or not?? Yes or No: ")).lower()
     
-    # Classified by human
+    # Classify by human
     if signal_status == 'yes':
-        dir = 'E:\\Sprio mini project\\Data_Collection\\collected_audios\\Accepted\\'
+        dir = BASE_DIR / 'Data_Collection' / 'collected_audios' / 'Accepted'
     else:
-        dir = 'E:\\Sprio mini project\\Data_Collection\\collected_audios\\Rejected\\'
-    saved_file(audio_data, sr, filename, dir)
-    record_data(DATAFILE, filename, subject_number, name, body_type, gender, testing_datetime, diseases, maxx_peak, peak_at_1s, signal_status)
-            
+        dir = BASE_DIR / 'Data_Collection' / 'collected_audios' / 'Rejected'
+    dir.mkdir(parents=True, exist_ok=True)
+    
+    # save_file(audio_data, sr, filename, dir)
+    # record_data(data_file, filename, subject_number, name, body_type, gender, testing_datetime, diseases, maxx_peak, peak_at_1s, signal_status)
 
 if __name__ == '__main__':
     again = True
     while again:
         main()
         ans = input("Try Again? y/n: ").lower()
-        if ans == 'n' or ans =='no':
+        if ans in ['n', 'no']:
             again = False
-        elif ans == 'yes' or ans == 'y':
+        elif ans in ['yes', 'y']:
             again = True
         else:
             print("Invalid Response!!")
-           
-
-# save the plot into the Data_collection / PLots directory
-# Record the data in the recorder.csv file
+            
