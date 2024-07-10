@@ -1,5 +1,7 @@
 ## ----------- To Reduce the noise from the recorded audio ----------------------
 
+## STILL NEEDS FORMATING AND MAKE IT MORE UNDERSTANDABLE
+
 '''
 Aim: Applying an appropriate filter on the signal to reduce the noise 
 Number of Test : 05
@@ -18,6 +20,7 @@ import sounddevice as sd
 import matplotlib.pyplot as plt
 import scipy.signal as ss
 from PyEMD import CEEMDAN
+from PyEMD import EMD
 import numpy as np
 import pandas as pd
 import tkinter as tk
@@ -25,9 +28,9 @@ import pywt
 import time
  
 # -----------------------------   GLOBAL PARAMETER   ---------------------------------------
-SAMPLE_RATE = 8000
-LOWCUT = 100
-HIGHCUT = 2000
+SAMPLE_RATE = 4000
+LOWCUT = 1
+HIGHCUT = 1999
 ORDER = 5
 WINDOW_SIZE = 20
 FL_HZ = 10
@@ -80,6 +83,12 @@ def iceemdan_filter(signal: list):
     denoised_signal = signal - IMFS[0]
     return denoised_signal, IMFS[0]
 
+def emd_filter(signal: list):
+    emd = EMD()
+    IMFS = emd.emd(signal)
+    denoised_signal = signal - IMFS[0]
+    return denoised_signal, IMFS[0]
+
 def wavelet_denoising(signal: list) -> list:
     coeffs = pywt.wavedec(signal, 'db1', level=6)
     sigma = np.median(np.abs(coeffs[-1])) / 0.6745
@@ -90,10 +99,10 @@ def wavelet_denoising(signal: list) -> list:
 
 # ---------------------------------------------------------------- EVALUATION -----------------------------------------------------------
 
-def calculate_snr(signal: list, denoise_signal: list) -> float:
+def calculate_snr(signal: np.ndarray, denoise_signal: np.ndarray) -> float:
     noise = signal - denoise_signal
-    signal_power = np.mean(signal ** 2)
-    noise_power = np.mean(noise ** 2)
+    signal_power = np.mean(signal**2)
+    noise_power = np.mean(noise**2)
     snr = 10 * np.log(signal_power / noise_power)
     return snr
 
@@ -129,10 +138,10 @@ def plot_signal(time: list, raw_audio_signal: list, butter_bp_filter: list, deno
     
     plt.subplot(3, 2, 3)
     plt.plot(time, raw_audio_signal, label = 'Original Audio Signal', color = 'b')
-    plt.plot(time, denoised_signal, label = 'Denoised Audio Signal', color = 'r', alpha = 0.5)
+    plt.plot(time, denoised_signal, label = 'ICEEMDAN Filtered Audio', color = 'r', alpha = 0.5)
     plt.xlabel('Time (seconds)')
     plt.ylabel('Amplitude') 
-    plt.title('Original Signal V/s IMF0 Signal')
+    plt.title('Original Signal V/s IMF0(EMD) Signal')
     plt.legend(loc = 'upper right')
     plt.grid(True)
     
@@ -140,7 +149,7 @@ def plot_signal(time: list, raw_audio_signal: list, butter_bp_filter: list, deno
     f, Pxx = ss.welch(raw_audio_signal, fs=sr, nperseg=1024)
     fd, Pxxd = ss.welch(denoised_signal, fs = sr, nperseg=1024)
     plt.semilogy(f, Pxx, label = 'Original Signal',alpha = 1)
-    plt.semilogy(fd, Pxxd, color = 'red', label = 'Denoised Signal', alpha = 0.5)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'IMF0 Signal', alpha = 0.5)
     plt.title(f'Power Spectral Density | RMSE: {rmse[1]:.4f} | SNR: {snr[1]:.2f}')
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Power/Frequency (dB/Hz)')
@@ -149,10 +158,10 @@ def plot_signal(time: list, raw_audio_signal: list, butter_bp_filter: list, deno
     
     plt.subplot(3, 2, 5)
     plt.plot(time, raw_audio_signal, label = 'Original Audio Signal', color = 'b')
-    plt.plot(time, B_denoised_signal, label = 'Denoised Audio Signal(with butterBP)', color = 'r', alpha = 0.5)
+    plt.plot(time, B_denoised_signal, label = 'EMD Filtered Audio ', color = 'r', alpha = 0.5)
     plt.xlabel('Time (seconds)')
     plt.ylabel('Amplitude') 
-    plt.title('Original Signal V/s Denoised Signal')
+    plt.title('Original Signal V/s Denoised Signal(EMD)')
     plt.legend(loc = 'upper right')
     plt.grid(True)
     
@@ -160,7 +169,7 @@ def plot_signal(time: list, raw_audio_signal: list, butter_bp_filter: list, deno
     f, Pxx = ss.welch(raw_audio_signal, fs=sr, nperseg=1024)
     fd, Pxxd = ss.welch(B_denoised_signal, fs = sr, nperseg=1024)
     plt.semilogy(f, Pxx, label = 'Original Signal',alpha = 1)
-    plt.semilogy(fd, Pxxd, color = 'red', label = 'Denoised Signal(with butterBP)', alpha = 0.5)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'Denoised Audio Signal(without butterBP)', alpha = 0.5)
     plt.title(f'Power Spectral Density | RMSE: {rmse[2]:.4f} | SNR: {snr[2]:.2f}')
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Power/Frequency (dB/Hz)')
@@ -170,6 +179,79 @@ def plot_signal(time: list, raw_audio_signal: list, butter_bp_filter: list, deno
     plt.tight_layout(pad=3.0) 
     plt.show()
 
+
+def plot_psd(raw_audio_signal: list, raw_audio_signal2: list ,butter_bp_filter: list, imf0: list ,B_denoised_signal, sr: int, rmse: list, snr: list,A_rmse: list, A_snr: list ):
+    
+    plt.figure(figsize=(12, 10))
+    
+    plt.subplot(3, 2, 1)
+    f, Pxx = ss.welch(raw_audio_signal, fs=sr, nperseg=1024)
+    fd, Pxxd = ss.welch(butter_bp_filter, fs = sr, nperseg=1024)
+    plt.semilogy(f, Pxx, label = 'Original Signal',alpha = 1)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'ButterWorth Signal', alpha = 0.5)
+    plt.title(f'Power Spectral Density | RMSE: {A_rmse[0]:.4f} | SNR: {A_snr[0]:.2f}')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power/Frequency (dB/Hz)')
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    
+    plt.subplot(3, 2, 3)
+    f, Pxx = ss.welch(raw_audio_signal, fs=sr, nperseg=1024)
+    fd, Pxxd = ss.welch(imf0, fs = sr, nperseg=1024)
+    plt.semilogy(f, Pxx, label = 'Original Signal',alpha = 1)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'ICEEMDAN Filtered Audio', alpha = 0.5)
+    plt.title(f'Power Spectral Density | RMSE: {A_rmse[1]:.4f} | SNR: {A_snr[1]:.2f}')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power/Frequency (dB/Hz)')
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    
+    plt.subplot(3, 2, 5)
+    f, Pxx = ss.welch(raw_audio_signal, fs=sr, nperseg=1024)
+    fd, Pxxd = ss.welch(B_denoised_signal, fs = sr, nperseg=1024)
+    plt.semilogy(f, Pxx, label = 'Original Signal',alpha = 1)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'EMD Audio Signal', alpha = 0.5)
+    plt.title(f'Power Spectral Density | RMSE: {A_rmse[2]:.4f} | SNR: {A_snr[2]:.2f}')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power/Frequency (dB/Hz)')
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    
+    plt.subplot(3, 2 , 2)
+    f, Pxx = ss.welch(raw_audio_signal2, fs=sr, nperseg=1024)
+    fd, Pxxd = ss.welch(butter_bp_filter, fs = sr, nperseg=1024)
+    plt.semilogy(f, Pxx, label = 'ButterWorth Signal',alpha = 1)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'ButterWoth Signal', alpha = 0.5)
+    plt.title(f'Power Spectral Density | RMSE: {rmse[0]:.4f} | SNR: {snr[0]:.2f}')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power/Frequency (dB/Hz)')
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    
+    plt.subplot(3, 2, 4)
+    f, Pxx = ss.welch(raw_audio_signal2, fs=sr, nperseg=1024)
+    fd, Pxxd = ss.welch(imf0, fs = sr, nperseg=1024)
+    plt.semilogy(f, Pxx, label = 'Butter worth Signal',alpha = 1)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'ICEEMDAN Filtered Audio', alpha = 0.5)
+    plt.title(f'Power Spectral Density | RMSE: {rmse[1]:.4f} | SNR: {snr[1]:.2f}')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power/Frequency (dB/Hz)')
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    
+    plt.subplot(3, 2 , 6)
+    f, Pxx = ss.welch(raw_audio_signal2, fs=sr, nperseg=1024)
+    fd, Pxxd = ss.welch(B_denoised_signal, fs = sr, nperseg=1024)
+    plt.semilogy(f, Pxx, label = 'ButterWorth Signal',alpha = 1)
+    plt.semilogy(fd, Pxxd, color = 'red', label = 'EMD Audio Signal', alpha = 0.5)
+    plt.title(f'Power Spectral Density | RMSE: {rmse[2]:.4f} | SNR: {snr[2]:.2f}')
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power/Frequency (dB/Hz)')
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    
+    plt.tight_layout(pad=3.0) 
+    plt.show()
 
 # ------------------------------------------------------------- MAIN FILE ----------------------------------------------------------------------------
 
@@ -189,24 +271,40 @@ def main():
     butter_filtered_signal = butterworth_filter(audio_data, LOWCUT, HIGHCUT, ORDER, sr)
     print("-----------  ButterWorth Filter Stage Clear -----------------\n")
     
+    # # Fiter using ICEEMDAN Filter on raww
+    # _denoised_signal, _imf0 = iceemdan_filter(audio_data)
+    # denoised_signal = wavelet_denoising(_denoised_signal)
+    
+    # # Fiter using ICEEMDAN Filter on butter worth filter audio signal
+    # B_denoised_signal, B_imf0 = iceemdan_filter(butter_filtered_signal)
+    # B_denoised_signal = wavelet_denoising(B_denoised_signal)
+    # print("-------------  ICEEMDAN Filter Stage Clear  --------------------\n")
+    
     # Fiter using ICEEMDAN Filter on raww
-    _denoised_signal, _imf0 = iceemdan_filter(audio_data)
-    denoised_signal = wavelet_denoising(_denoised_signal)
+    _ice_denoised, ice_imf0 = iceemdan_filter(butter_filtered_signal)
+    ice_denoised = wavelet_denoising(_ice_denoised)
     
     # Fiter using ICEEMDAN Filter on butter worth filter audio signal
-    B_denoised_signal, B_imf0 = iceemdan_filter(butter_filtered_signal)
-    B_denoised_signal = wavelet_denoising(B_denoised_signal)
+    _denoised_signal, B_imf0 = emd_filter(butter_filtered_signal)
+    B_denoised_signal = wavelet_denoising(_denoised_signal)
     print("-------------  ICEEMDAN Filter Stage Clear  --------------------\n")
     
-    # Calculat the SNR and RMSE
-    fiters = [butter_filtered_signal, denoised_signal, B_denoised_signal]
-    snrs = [calculate_snr(audio_data, filter) for filter in fiters]
-    rmses = [calculate_rmse(audio_data, filter) for filter in fiters]
+    # Calculat the SNR and RMSE on audio signal 
+    fitered_signal = [butter_filtered_signal, ice_denoised, B_denoised_signal]
+    # fiters = [butter_filtered_signal, denoised_signal, B_denoised_signal]
+    A_snrs = [calculate_snr(audio_data, signal) for signal in fitered_signal]
+    A_rmses = [calculate_rmse(audio_data, signal) for signal in fitered_signal]
     
-    print(" -------------------  Here We GO... -----------------------------\n")
     
-    plot_signal(time, audio_data, butter_filtered_signal, denoised_signal, B_denoised_signal, sr, rmses, snrs)
-
+    # Calculate the SNR and RMSE for butter worth filter
+    snrs = [calculate_snr(butter_filtered_signal, signal) for signal in fitered_signal]
+    rmses = [calculate_rmse(butter_filtered_signal, signal) for signal in fitered_signal]
+    print(" -------------------  Here We GO.. -----------------------------\n")
+    
+    # plots 
+    plot_signal(time, audio_data, butter_filtered_signal, ice_denoised, B_denoised_signal, sr, A_rmses, A_snrs)
+    plot_psd(audio_data, butter_filtered_signal,butter_filtered_signal, ice_denoised, B_denoised_signal, sr, rmses, snrs, A_rmses,A_snrs)
+    
     print(f' SNR BUTTER:{snrs[0]:.2f} \n SNR IMF0: {snrs[1]:.2f} \n SNR Denoised: {snrs[2]:.2f} \n')
     print(f' RMSE BUTTER:{rmses[0]:.4f} \n RMSE IMF0: {rmses[1]:.4f} \n RMSE Denoised: {rmses[2]:.4f} \n')
     

@@ -1,3 +1,1 @@
 filename,subject_number,name,body_type,gender,testing_datetime,diseases,max_peak,peak_at_1sec,signal_status
-chetan_choudhary_20240705_185935.wav,1,chetan_choudhary,B,male,20240705_185935,no,10752.8,1.95,yes
-chetan_choudhary_20240705_191803.wav,1,chetan_choudhary,B,male,20240705_191803,no,1751.64,27.83,yes
