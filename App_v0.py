@@ -10,9 +10,9 @@ import pywt
 SAMPLE_RATE = 4000
 DURATION = 3  # seconds
 LOWCUT = 100
-HIGHCUT = 1999
+HIGHCUT = 1000
 ORDER = 5
-WINDOW_SIZE = 500
+WINDOW_SIZE = 800
 FL_HZ = 10
 RIPPLE_DB = 10.0
 
@@ -38,7 +38,7 @@ def emd_filter(signal):
     emd = EMD()
     imfs = emd.emd(signal)
     denoised_signal = signal - imfs[0]
-    return denoised_signal, imfs[0]
+    return denoised_signal
 
 # Function to perform wavelet denoising
 def wavelet_denoising(signal):

@@ -29,6 +29,7 @@ from time import sleep
 import datetime
 import os
 from pathlib import Path
+import librosa
 
 # -------------------------------------------------------   GLOBAL PARAMETERS   ---------------------------------------------------------
 SAMPLE_RATE = 4000
@@ -43,13 +44,17 @@ BASE_DIR = Path(__file__).resolve().parent
 # ---------------------------------------------------------   RECORD AUDIO SIGNAL   ------------------------------------------------------
 
 def capture_audio(duration: int):
-    print('Recording....')
-    audio_data = sd.rec(int(duration * SAMPLE_RATE), SAMPLE_RATE, channels=1, dtype='int16')
-    sd.wait()
-    print('Processing...')
-    return audio_data.flatten(), SAMPLE_RATE
+    # print('Recording....')
+    # audio_data = sd.rec(int(duration * SAMPLE_RATE), SAMPLE_RATE, channels=1, dtype='int16')
+    # sd.wait()
+    # print('Processing...')
+    # return audio_data.flatten(), SAMPLE_RATE
+    filepath = 'Data_Collection\\collected_audios\\Accepted\\chetan_choudhary_20240709_122519.wav'
+    audio_data, sample_rate = librosa.load(filepath, sr=4000)
+    print("SAmple rate:", sample_rate)
+    return audio_data.flatten(), sample_rate
 
-# Function to display countdown window
+# ------------------------------------------------------ Function to display countdown window -------------------------------------------
 def show_countdown():
     """
     Displays a countdown window using Tkinter.
@@ -131,30 +136,42 @@ def smooth_envelope(signal: list, window_size: int) -> list:
 def maxima(signal: list) -> tuple:
     signal = np.array(signal)  
     index = np.argmax(signal)  
-    return index
+    maxx_signal = signal[index]
+    return index, maxx_signal
 
 # ------------------------------------------------------------ PLOT REJECTION -------------------------------------------------------------
 
-def plot_rejection(time: list, sr: int, signal: list, denoised_signal: list, envelope: list, maxx_peak_time: int, peak_at_1sec_time:int ,start: int, end: int, reason: str) -> None:
+def plot_rejection(time: list, sr: int, signal: list, denoised_signal: list, envelope: list, maxx_peak_time: int, start: int, end: int, reason: str) -> None:
+    
+    # plt.figure(figsize=(14, 10))
+    # plt.subplot(3, 1, 1)
+    # plt.plot(time, signal, label='Original Signal')
+    # # plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
+    # plt.title(f'XXXXXX SAMPLE REJECTED!! XXXXXXX Reason: {reason}')
+    # plt.xlabel('Time(s)')
+    # plt.ylabel('Amplitude')
+    # plt.legend(loc='upper right')
+    # plt.grid(True)
     
     plt.figure(figsize=(14, 10))
     plt.subplot(3, 1, 1)
-    plt.plot(time, signal, label='Original Signal')
+    plt.plot(time, signal)
     # plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
-    plt.title(f'XXXXXX SAMPLE REJECTED!! XXXXXXX Reason: {reason}')
+    plt.title(f'Threshold Filter Signal')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
     plt.legend(loc='upper right')
     plt.grid(True)
     
     plt.subplot(3, 1, 2)
-    plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
-    plt.plot(time, envelope, label='Envelope Signal', color='r', alpha=0.7)
-    plt.plot(time[peak_at_1sec_time], envelope[peak_at_1sec_time], 'go', label='Peak at 1 sec')
-    plt.plot(time[maxx_peak_time], envelope[maxx_peak_time], 'mo', label='Max Peak')
-    plt.plot(time[start], envelope[start], 'ko', label='Start Point')
-    plt.plot(time[end], envelope[end], 'co', label='End Point')
-    plt.title(f'Max Peak: {envelope[maxx_peak_time]:.2f} | Peak at 1 sec: {envelope[peak_at_1sec_time]:.2f}')
+    plt.plot(time, denoised_signal, label='ButterWorth Bandpass Signal', color='g', alpha=0.5)
+    # plt.plot(time, envelope, label='Envelope Signal', color='r', alpha=0.7)
+    # plt.plot(time[sr], envelope[sr], 'go', label='Peak at 1 sec')
+    # plt.plot(time[maxx_peak_time], envelope[maxx_peak_time], 'mo', label='Max Peak')
+    # plt.plot(time[start], envelope[start], 'ko', label='Start Point')
+    # plt.plot(time[end], envelope[end], 'co', label='End Point')
+    # plt.title(f'Max Peak: {envelope[maxx_peak_time]:.2f} | Peak at 1 sec: {envelope[sr]:.2f}')
+    plt.title('ButterWorth Bandpass Signal')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
     plt.legend(loc='upper right')
@@ -173,34 +190,37 @@ def plot_rejection(time: list, sr: int, signal: list, denoised_signal: list, env
 
 #  -------------------------------------------------------------- PLOTS ACCEPTANCE FUNCTION --------------------------------------------------------------------
 
-def plot_signals(time: list, sr: int, signal: list, denoised_signal: list, envelope: list, maxx_peak_time: int, peak_at_1sec_time:int ,start: int, end: int, reason: str) -> None:
+def plot_signals(time: list, sr: int, signal: list, denoised_signal: list, envelope: list, maxx_peak_time: int, start: int, end: int, reason: str) -> None:
     
     plt.figure(figsize=(14, 10))
     plt.subplot(3, 1, 1)
     plt.plot(time, signal, label='Original Signal')
     # plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
-    plt.title(f'Original V/s Denoised Signal || SNR :{reason}')
+    # plt.title(f'Original V/s Denoised Signal || SNR :{reason}')
+    plt.title(f'Original Signal') 
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
     plt.legend(loc='upper right')
     plt.grid(True)
     
     plt.subplot(3, 1, 2)
-    plt.plot(time, denoised_signal, label='Denoised Signal', color='g', alpha=0.5)
-    plt.plot(time, envelope, label='Envelope Signal', color='r', alpha=0.7)
-    plt.plot(time[peak_at_1sec_time], envelope[peak_at_1sec_time], 'go', label='Peak at 1 sec')
-    plt.plot(time[maxx_peak_time], envelope[maxx_peak_time], 'mo', label='Max Peak')
-    plt.plot(time[start], envelope[start], 'ko', label='Start Point')
-    plt.plot(time[end], envelope[end], 'co', label='End Point')
-    plt.title(f'Max Peak: {envelope[maxx_peak_time]:.2f} | Peak at 1 sec: {envelope[peak_at_1sec_time]:.2f}')
+    plt.plot(time, denoised_signal, label='ButterWorth Bandpass Signal', alpha=0.5)
+    # plt.plot(time, envelope, label='Envelope Signal', color='r', alpha=0.7)
+    # plt.plot(time[sr], envelope[sr], 'go', label='Peak at 1 sec')
+    # plt.plot(time[maxx_peak_time], envelope[maxx_peak_time], 'mo', label='Max Peak')
+    # plt.plot(time[start], envelope[start], 'ko', label='Start Point')
+    # plt.plot(time[end], envelope[end], 'co', label='End Point')
+    # plt.title(f'Max Peak: {envelope[maxx_peak_time]:.2f} | Peak at 1 sec: {envelope[sr]:.2f}')
+    plt.title('ButterWorth Bandpass Signal')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
     plt.legend(loc='upper right')
     plt.grid(True)
     
     plt.subplot(3, 1, 3)
-    plt.plot(time, envelope, label='Envelope Signal', color='m', alpha=0.7)
-    plt.title('Extracted Envelope')
+    # plt.plot(time, envelope, label='Envelope Signal', color='m', alpha=0.7)
+    plt.plot(time, envelope, alpha=0.7)
+    plt.title('Emperical Mode Decomposition Signal')
     plt.xlabel('Time(s)')
     plt.ylabel('Amplitude')
     plt.legend(loc='upper right')
@@ -211,25 +231,9 @@ def plot_signals(time: list, sr: int, signal: list, denoised_signal: list, envel
     
 # ------------------------------------------------------------- CLIPPING AUDIO  ------------------------------------------------------------------------
 
-# def clipping_audio(signal: list, window_size: int, step_size: int, threshold_ratio: float) -> tuple:
-#     start = 0
-#     endpoint = 0
-#     signal = np.array(signal)
-#     maxx = np.max(signal) ** 2
-#     threshold = threshold_ratio * maxx
-#     for i in range(0, len(signal) - window_size + 1, step_size):
-#         energy = np.sum((signal[i: i + window_size]) ** 2)
-#         if start == 0 and energy > threshold:
-#             start = i
-#         if start != 0 and energy < threshold:
-#             endpoint = i 
-#             break
-    
-#     return start, endpoint
-
 def clipping_audio(signal: list, window_size: int, step_size: int, threshold_ratio: float) -> tuple:
+    start, end = 0 , 0
     START, END = 0, 0
-    start, endpoint = 0, 0
     prev_energy = 0
     signal = np.array(signal)
     maxx = np.max(signal) ** 2
@@ -238,7 +242,7 @@ def clipping_audio(signal: list, window_size: int, step_size: int, threshold_rat
     # clipping the waveform based on their energy level and clipped only that section that have maximum energy
     for i in range(0, len(signal) - window_size + 1, step_size):
         energy = np.sum((signal[i: i + window_size]) ** 2)
-        if start == 0 and energy > 4 * threshold:
+        if start == 0 and energy > threshold:
             start = i
         if start != 0 and energy < threshold:
             endpoint = i 
@@ -248,8 +252,7 @@ def clipping_audio(signal: list, window_size: int, step_size: int, threshold_rat
                 prev_energy = curr_clip_energy
             start = 0
             endpoint = 0
-    
-    # return the clipped section with maximum energy
+                
     return START, END
 
 # ------------------------------------------------------------- ENVELOPE SMOOTHNESS ESTIMATION  ------------------------------------------------------------------------
@@ -274,7 +277,7 @@ def isAccept(signal: np.ndarray, start: int, end: int, snr_threshold: float):
     # max peak 
     max_peak = np.max(clipped_signal)
     y_threshold = 0.5 * max_peak
-    x_threshold = 0.4 * (end - start + 1)
+    x_threshold = 0.5 * (end - start + 1)
     
     # signal should only have one max peak
     peaks, _ = ss.find_peaks(clipped_signal, height=y_threshold, distance=x_threshold)
@@ -328,9 +331,10 @@ def save_file(audio_data: np.ndarray, sr: int, filename: str, dir: str) -> None:
     print(f"Audio data saved to {filepath}")
 
 # -------------------------------------------------------------------------- MAIN FUNCTION  ----------------------------------------------------------------------------
-def main(subject_number:int, name: str, body_type:str, gender:str, diseases: str):
+# def main(subject_number:int, name: str, body_type:str, gender:str, diseases: str):
+def main():
     # Countdown
-    show_countdown()
+    # show_countdown()
 
     # Record the audio
     current_day = datetime.datetime.now()
@@ -346,42 +350,38 @@ def main(subject_number:int, name: str, body_type:str, gender:str, diseases: str
     butter_filt_data = butterworth_filter(audio_data, LOWCUT, HIGHCUT, ORDER, SAMPLE_RATE)
     
     # Apply EMD filter on that
-    denoised_signal, imf0 = emd_filter(butter_filt_data)
-    denoised_signal = wavelet_denoising(denoised_signal)
+    _denoised_signal, imf0 = emd_filter(butter_filt_data)
+    denoised_signal = wavelet_denoising(_denoised_signal)
     
     # Extracting Envelope from the filtered audio
     envelope = extract_envelope(denoised_signal, SAMPLE_RATE, FL_HZ, RIPPLE_DB)
     smoothen_envelope = smooth_envelope(envelope, WINDOW_SIZE)
 
-    # # Find the clips in the audio signal
-    start_point, end_point = clipping_audio(smoothen_envelope, 400, 1, 0.2)
-    
     # Find the timestamp where the amplitude is maximum
-    max_peak_time = maxima(smoothen_envelope[start_point : end_point + 1])
-    max_peak_time = max_peak_time + start_point
-    maxx_peak = f'{smoothen_envelope[max_peak_time]:.2f}'
+    max_peak_time, maxx_peak = maxima(smoothen_envelope)
+    maxx_peak = float(f"{maxx_peak:.2f}")
     
-    peak_at_1s_time = start_point + sr
-    try:
-        peak_at_1s = smoothen_envelope[peak_at_1s_time]
-        peak_at_1s = float(f"{peak_at_1s:.2f}")
-    except IndexError:
-        peak_at_1s = 'Appropriate Exhale, Try to Exhale Earlier when recording starts'
-            
-    filename = f'{name}_{testing_datetime}.wav'
-    print(f"Save the plot as: {name}_{testing_datetime}")
+    peak_at_1s = smoothen_envelope[sr]
+    peak_at_1s = float(f"{peak_at_1s:.2f}")
+    
+    # # Find the clips in the audio signal
+    start_point, end_point = clipping_audio(envelope, 400, 1, 0.1)
+    
+    # filename = f'{name}_{testing_datetime}.wav'
+    # print(f"Save the plot as: {name}_{testing_datetime}")
     
     # check for acceptance of the signal
     accept, reason = isAccept(envelope,start_point, end_point, 10.0)
+    # noise_std = np.std(envelope[start_point: end_point + 1])
     
     # Plot the signal
-    if accept:
-        plot_signals(time, sr, audio_data, denoised_signal, smoothen_envelope, max_peak_time, peak_at_1s_time, start_point, end_point, reason)
-    else:
-        plot_rejection(time, sr, audio_data, denoised_signal, smoothen_envelope, max_peak_time, peak_at_1s_time, start_point, end_point, reason)
+    # if accept:
+    plot_signals(time, sr, audio_data, butter_filt_data, _denoised_signal, max_peak_time, start_point, end_point, reason)
+    # else:
+    plot_rejection(time, sr, denoised_signal, denoised_signal, smoothen_envelope, max_peak_time, start_point, end_point, reason)
         
-    # Feedback on this 
-    signal_status = str(input("Accepted or not?? Yes or No: ")).lower()
+    # # Feedback on this 
+    # signal_status = str(input("Accepted or not?? Yes or No: ")).lower()
     
     # # Classify by human
     # if signal_status == 'yes':
@@ -396,11 +396,11 @@ def main(subject_number:int, name: str, body_type:str, gender:str, diseases: str
 if __name__ == '__main__':
     print("--------------  Initiate System  ------------------")
     sleep(1)
-    subject_number, name, body_type, gender, diseases = collect_data()
+    # subject_number, name, body_type, gender, diseases = collect_data()
     again = True
     while again:
-        main(subject_number, name, body_type, gender, diseases)
-        # main()
+        # main(subject_number, name, body_type, gender, diseases)
+        main()
         ans = input("Try Again? y/n: ").lower()
         if ans in ['n', 'no']:
             again = False
@@ -408,5 +408,4 @@ if __name__ == '__main__':
             again = True
         else:
             print("Invalid Response!!")
-            break
             
